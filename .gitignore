@@ -1,0 +1,14 @@
+# QBDI 大文件
+  qbdi/lib/*.a
+  qbdi/lib/*.so
+
+  # 编译产物
+  *.o
+  *.out
+  mem_tracer
+
+  # 日志
+  *.log
+
+  # IDE
+  .idea/

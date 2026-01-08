@@ -1,0 +1,17 @@
+{
+  "configurations": [
+    {
+      "name": "Android AArch64",
+      "includePath": [
+        "${workspaceFolder}/qbdi/include",
+        "${workspaceFolder}/src"
+      ],
+      "defines": ["__aarch64__", "__ANDROID__", "__ANDROID_API__=23"],
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-arm64",
+      "compilerArgs": ["-target", "aarch64-linux-android23"]
+    }
+  ],
+  "version": 4
+}
