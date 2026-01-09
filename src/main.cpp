@@ -8,11 +8,13 @@ static FILE *g_log = nullptr;
 static uint64_t g_reads = 0;
 static uint64_t g_writes = 0;
 static bool g_show_symbol = false; // 默认关闭符号解析
+// 是否追踪 Java 层（通过 libart.so）
+static const bool TRACE_JAVA = true;
 
 // 清理函数
 static void cleanup(uint8_t *stack) {
   if (stack)
-    QBDI::alignedFress(stack);
+    QBDI::alignedFree(stack);
   if (g_log && g_log != stderr)
     fclose(g_log);
 }
@@ -94,8 +96,6 @@ static const std::vector<std::string> TARGET_MODULES = {
     // "libcrypto.so",
 };
 
-// 是否追踪 Java 层（通过 libart.so）
-static const bool TRACE_JAVA = true;
 // ================================
 
 static void setup_instrumentation(QBDI::VM &vm) {
@@ -112,7 +112,7 @@ static void setup_instrumentation(QBDI::VM &vm) {
   if (TRACE_JAVA) {
     fprintf(g_log, "\n[*] Enabling Java layer tracing...\n");
     add_module_from_maps(vm, "libart.so");
-    // 可选：追踪更多 ART 组件
+    // 可选：追踪更多 ART 组件 示例
     // add_module_from_maps(vm, "libart-compiler.so");
     // add_module_from_maps(vm, "libdexfile.so");
   }
@@ -121,13 +121,18 @@ static void setup_instrumentation(QBDI::VM &vm) {
 }
 int main() {
   // 打开日志
-  g_log = fopen("/data/local/tmp/mem_trace.log", "w");
-  if (!g_log) {
+  // w:文件不存在会自动创建这个文件
+  if (!(g_log = fopen("/data/local/tmp/mem_trace.log", "w"))) {
     g_log = stderr;
     fprintf(stderr, "[!] Cannot open log file\n");
   }
 
   // 设置行缓冲，实时看到输出
+  // 把日志文件设置为行缓冲模式，每写完一行立即刷到磁盘
+  // int setvbuf(FILE *stream, char *buffer, int mode, size_t size);
+  //_IONBF 无缓冲 每次写入立即输出
+  //_IOLBF 行缓冲 遇到 \n 或缓冲区满时刷新
+  //_IOFBF 全缓冲 缓冲区满或 fflush() 时刷新
   setvbuf(g_log, nullptr, _IOLBF, 0);
 
   fprintf(g_log, "=== QBDI Memory Tracer ===\n");
@@ -139,6 +144,7 @@ int main() {
 
   // 分配虚拟栈
   uint8_t *stack = nullptr;
+  // 获取通用寄存器
   QBDI::GPRState *gpr = vm.getGPRState();
   if (!QBDI::allocateVirtualStack(gpr, 0x100000, &stack)) {
     fprintf(g_log, "[!] Failed to allocate stack\n");

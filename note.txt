@@ -1,3 +1,13 @@
+## 依赖
+
+下载 QBDI Android 预编译包：
+https://github.com/QBDI/QBDI/releases
+
+解压后放到项目根目录：
+qbdi/
+├── include/
+└── lib/
+
 全量追踪的性能问题 - 追踪所有模块会导致性能急剧下降
 
 白名单模块不存在的处理 - addInstrumentedModule 会返回 false，需要处理
