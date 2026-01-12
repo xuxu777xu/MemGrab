@@ -1,193 +1,84 @@
-#include "../qbdi/include/QBDI.h"
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <vector>
+#include "../gum/frida-gum.h"
+#include <android/log.h>
+#include <dlfcn.h>
 
-static FILE *g_log = nullptr;
-static uint64_t g_reads = 0;
-static uint64_t g_writes = 0;
-static bool g_show_symbol = false; // 默认关闭符号解析
-// 是否追踪 Java 层（通过 libart.so）
-static const bool TRACE_JAVA = true;
+#define LOG_TAG "MemTrace"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-// 清理函数
-static void cleanup(uint8_t *stack) {
-  if (stack)
-    QBDI::alignedFree(stack);
-  if (g_log && g_log != stderr)
-    fclose(g_log);
-}
+// 目标方法签名（待匹配）
+static const char *TARGET_METHOD_NAME = "localAESWork([BI[B)[B";
 
-// 通过 /proc/self/maps 添加模块
-static bool add_module_from_maps(QBDI::VM &vm, const std::string &pattern) {
-  std::ifstream maps("/proc/self/maps");
-  if (!maps.is_open()) {
-    fprintf(g_log, "[!] Cannot open /proc/self/maps\n");
-    return false;
-  }
-  std::string line;
-  bool added = false;
-
-  while (std::getline(maps, line)) {
-    // 只找包含目标名字的可执行段
-    if (line.find(pattern) == std::string::npos)
-      continue;
-    if (line.find("x") == std::string::npos)
-      continue;
-
-    unsigned long long start, end;
-    if (sscanf(line.c_str(), "%llx-%llx", &start, &end) == 2) {
-      vm.addInstrumentedRange((QBDI::rword)start, (QBDI::rword)end);
-      fprintf(g_log, "[+] %s: 0x%llx - 0x%llx\n", pattern.c_str(), start, end);
-      added = true;
-    }
-  }
-  return added;
-}
-
-// 内存访问回调
-static QBDI::VMAction on_mem_access(QBDI::VMInstanceRef vm, QBDI::GPRState *gpr,
-                                    QBDI::FPRState *fpr, void *data) {
-  std::vector<QBDI::MemoryAccess> accesses = vm->getInstMemoryAccess();
-
-  for (const auto &a : accesses) {
-    const char *type = (a.type == QBDI::MEMORY_READ)    ? "R"
-                       : (a.type == QBDI::MEMORY_WRITE) ? "W"
-                                                        : "RW";
-
-    if (a.type & QBDI::MEMORY_READ)
-      g_reads++;
-    if (a.type & QBDI::MEMORY_WRITE)
-      g_writes++;
-
-    // 基本信息
-    fprintf(g_log, "[%s] 0x%llx -> 0x%llx (%u)", type,
-            (unsigned long long)a.instAddress,
-            (unsigned long long)a.accessAddress, a.size);
-
-    // 值
-    if (!(a.flags & QBDI::MEMORY_UNKNOWN_VALUE)) {
-      fprintf(g_log, " = 0x%llx", (unsigned long long)a.value);
-    }
-
-    // 符号解析（默认关闭，太慢）
-    if (g_show_symbol) {
-      const QBDI::InstAnalysis *inst = vm->getInstAnalysis(
-          QBDI::ANALYSIS_INSTRUCTION | QBDI::ANALYSIS_SYMBOL);
-      if (inst && inst->moduleName) {
-        fprintf(g_log, "  [%s", inst->moduleName);
-        if (inst->symbolName) {
-          fprintf(g_log, "!%s+0x%x", inst->symbolName, inst->symbolOffset);
-        }
-        fprintf(g_log, "]");
-      }
-    }
-
-    fprintf(g_log, "\n");
-  }
-
-  return QBDI::CONTINUE;
-}
-// 要追踪的目标 so（改成你的目标）
-static const std::vector<std::string> TARGET_MODULES = {
-    "libtarget.so",
-    "libnative-lib.so",
-    // "libcrypto.so",
+// ArtMethod 结构（Android 13 ARM64）
+struct ArtMethod {
+  uint32_t declaring_class_;
+  uint32_t access_flags_;
+  uint32_t dex_code_item_offset_;
+  uint32_t dex_method_index_;
+  uint16_t method_index_;
+  uint16_t hotness_count_;
+  struct {
+    void *data_; // native 方法的 JNI 入口
+    void *entry_point_from_quick_compiled_code_;
+  } ptr_sized_fields_;
 };
 
-// ================================
+static GumInterceptor *interceptor = nullptr;
 
-static void setup_instrumentation(QBDI::VM &vm) {
-  fprintf(g_log, "=== Setting up instrumentation ===\n");
+// hook 回调
+static void on_jni_method_start(GumInvocationContext *ctx, gpointer user_data) {
+  void *thread = gum_invocation_context_get_nth_argument(ctx, 0);
+  ArtMethod *method =
+      (ArtMethod *)gum_invocation_context_get_nth_argument(ctx, 1);
 
-  // 追踪目标模块
-  for (const auto &mod : TARGET_MODULES) {
-    if (!add_module_from_maps(vm, mod)) {
-      fprintf(g_log, "[-] Not found: %s\n", mod.c_str());
-    }
-  }
+  if (!method)
+    return;
 
-  // 追踪 Java 层
-  if (TRACE_JAVA) {
-    fprintf(g_log, "\n[*] Enabling Java layer tracing...\n");
-    add_module_from_maps(vm, "libart.so");
-    // 可选：追踪更多 ART 组件 示例
-    // add_module_from_maps(vm, "libart-compiler.so");
-    // add_module_from_maps(vm, "libdexfile.so");
-  }
+  // TODO: 解析 ArtMethod 获取方法名
+  // 这里需要实现 art_parser.cpp 中的方法签名解析
 
-  fprintf(g_log, "\n");
+  // 临时：打印地址用于调试
+  LOGI("artJniMethodStart: thread=%p, method=%p, native_entry=%p", thread,
+       method, method->ptr_sized_fields_.data_);
+
+  // TODO: 匹配目标方法后，捕获参数并加入 trace 队列
 }
-int main() {
-  // 打开日志
-  // w:文件不存在会自动创建这个文件
-  if (!(g_log = fopen("/data/local/tmp/mem_trace.log", "w"))) {
-    g_log = stderr;
-    fprintf(stderr, "[!] Cannot open log file\n");
+
+extern "C" void on_library_load() {
+  LOGI("MemTrace library loaded");
+
+  gum_init_embedded();
+  interceptor = gum_interceptor_obtain();
+
+  // 查找 artJniMethodStart
+  void *libart = dlopen("libart.so", RTLD_NOLOAD);
+  if (!libart) {
+    LOGE("Failed to find libart.so");
+    return;
   }
 
-  // 设置行缓冲，实时看到输出
-  // 把日志文件设置为行缓冲模式，每写完一行立即刷到磁盘
-  // int setvbuf(FILE *stream, char *buffer, int mode, size_t size);
-  //_IONBF 无缓冲 每次写入立即输出
-  //_IOLBF 行缓冲 遇到 \n 或缓冲区满时刷新
-  //_IOFBF 全缓冲 缓冲区满或 fflush() 时刷新
-  setvbuf(g_log, nullptr, _IOLBF, 0);
-
-  fprintf(g_log, "=== QBDI Memory Tracer ===\n");
-  fprintf(g_log, "Mode: Target SO + Java layer\n");
-  fprintf(g_log, "TRACE_JAVA: %s\n\n", TRACE_JAVA ? "ON" : "OFF");
-
-  // 创建 VM
-  QBDI::VM vm;
-
-  // 分配虚拟栈
-  uint8_t *stack = nullptr;
-  // 获取通用寄存器
-  QBDI::GPRState *gpr = vm.getGPRState();
-  if (!QBDI::allocateVirtualStack(gpr, 0x100000, &stack)) {
-    fprintf(g_log, "[!] Failed to allocate stack\n");
-    return 1;
+  void *art_jni_method_start = dlsym(libart, "artJniMethodStart");
+  if (!art_jni_method_start) {
+    LOGE("Failed to find artJniMethodStart");
+    return;
   }
 
-  // 设置插桩范围
-  setup_instrumentation(vm);
+  LOGI("Found artJniMethodStart at %p", art_jni_method_start);
 
-  // 开启内存访问记录
-  if (!vm.recordMemoryAccess(QBDI::MEMORY_READ_WRITE)) {
-    fprintf(g_log, "[!] recordMemoryAccess failed\n");
-    QBDI::alignedFree(stack);
-    return 1;
-  }
+  // 安装 hook
+  GumInvocationListener *listener =
+      gum_make_call_listener((GumInvocationCallback)on_jni_method_start,
+                             NULL, // onLeave
+                             NULL, // user_data
+                             NULL  // destroy
+      );
 
-  // 注册回调
-  vm.addMemAccessCB(QBDI::MEMORY_READ_WRITE, on_mem_access, nullptr);
+  gum_interceptor_begin_transaction(interceptor);
+  gum_interceptor_attach(interceptor, art_jni_method_start, listener, NULL);
+  gum_interceptor_end_transaction(interceptor);
 
-  fprintf(g_log, "=== Tracing started ===\n\n");
-
-  // ================================================
-  // TODO: 在这里调用你要追踪的目标函数
-  //
-  // 例1：直接调用本进程的函数
-  // QBDI::rword ret;
-  // vm.call(&ret, (QBDI::rword)target_func, {arg1, arg2});
-  //
-  // 例2：通过 dlsym 获取目标函数
-  // void *handle = dlopen("libtarget.so", RTLD_NOW);
-  // void *func = dlsym(handle, "target_function");
-  // vm.call(&ret, (QBDI::rword)func, {args...});
-  // ================================================
-
-  // 统计
-  fprintf(g_log, "\n=== Statistics ===\n");
-  fprintf(g_log, "Total reads:  %llu\n", (unsigned long long)g_reads);
-  fprintf(g_log, "Total writes: %llu\n", (unsigned long long)g_writes);
-
-  // 清理
-  QBDI::alignedFree(stack);
-  if (g_log != stderr)
-    fclose(g_log);
-
-  return 0;
+  LOGI("Hook installed successfully");
 }
+
+// 注入入口
+__attribute__((constructor)) static void init() { on_library_load(); }

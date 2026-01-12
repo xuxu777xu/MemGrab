@@ -3,6 +3,7 @@ qbdi/lib/
 
 # 编译产物
 *.o
+*.a
 *.out
 mem_tracer
 
@@ -12,3 +13,5 @@ mem_tracer
 # IDE
 .idea/
 EOF
+gum/libfrida-gum.a
+tmpclaude-*

@@ -3,5 +3,6 @@
     "allow": [
       "mcp__ide__getDiagnostics"
     ]
-  }
+  },
+  "outputStyle": "default"
 }
