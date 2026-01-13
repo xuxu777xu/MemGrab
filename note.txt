@@ -1,3 +1,0 @@
-public static native byte[] localAESWork(byte[] bArr, int i2, byte[] bArr2);
-.method public static native localAESWork([BI[B)[B
-.end method
