@@ -4,13 +4,16 @@
       "name": "Android AArch64",
       "includePath": [
         "${workspaceFolder}/qbdi/include",
-        "${workspaceFolder}/src"
+        "${workspaceFolder}/gum",
+        "${workspaceFolder}/src",
+        "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
+        "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/aarch64-linux-android"
       ],
-      "defines": ["__aarch64__", "__ANDROID__", "__ANDROID_API__=23"],
+      "defines": ["__aarch64__", "__ANDROID__", "__ANDROID_API__=33"],
       "cStandard": "c17",
       "cppStandard": "c++17",
-      "intelliSenseMode": "linux-gcc-arm64",
-      "compilerArgs": ["-target", "aarch64-linux-android23"]
+      "intelliSenseMode": "linux-clang-arm64",
+      "compilerPath": "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android33-clang++.cmd"
     }
   ],
   "version": 4
