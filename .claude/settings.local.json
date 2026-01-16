@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "mcp__ide__getDiagnostics",
-      "Skill(git-commit-helper)"
+      "Skill(git-commit-helper)",
+      "mcp__ace-mcp-augment__codebase-retrieval",
+      "WebSearch",
+      "WebFetch(domain:blog.quarkslab.com)",
+      "WebFetch(domain:qbdi.readthedocs.io)",
+      "Bash(dir \"C:\\\\Users\\\\Administrator\\\\.claude\" /a /b)"
     ]
   },
   "outputStyle": "default"
