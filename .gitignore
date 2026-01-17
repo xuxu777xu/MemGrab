@@ -12,6 +12,15 @@ mem_tracer
 
 # IDE
 .idea/
-EOF
+
+# 缓存
+.cache/
+
+# 本地设置
+.claude/settings.local.json
+
+# 依赖库
 gum/libfrida-gum.a
+
+# 临时文件
 tmpclaude-*

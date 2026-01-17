@@ -48,9 +48,17 @@ constexpr uint32_t kResolverTimeoutSec = 300;
 // LOGGING (template functions instead of macros)
 // ----------------------------------------------------------------------------
 namespace log {
+inline void info(const char* msg) {
+    __android_log_print(ANDROID_LOG_INFO, config::kLogTag.data(), "%s", msg);
+}
+
 template <typename... Args>
 inline void info(const char* fmt, Args... args) {
     __android_log_print(ANDROID_LOG_INFO, config::kLogTag.data(), fmt, args...);
+}
+
+inline void error(const char* msg) {
+    __android_log_print(ANDROID_LOG_ERROR, config::kLogTag.data(), "%s", msg);
 }
 
 template <typename... Args>
@@ -593,11 +601,11 @@ static bool is_in_libart(void* p) {
     return std::strstr(info.dli_fname, "libart.so") != nullptr;
 }
 
-static void on_trampoline_enter(GumInvocationContext*) {
+static void on_trampoline_enter(GumInvocationContext*, void*) {
     // Empty - we only care about the leave callback
 }
 
-static void on_trampoline_leave(GumInvocationContext* ic) {
+static void on_trampoline_leave(GumInvocationContext* ic, void*) {
     auto target = state::g_target_art_method.load();
     if (!target) {
         return;

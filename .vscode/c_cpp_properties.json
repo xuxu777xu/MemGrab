@@ -1,19 +1,27 @@
 {
   "configurations": [
     {
-      "name": "Android AArch64",
+      "name": "Android arm64-v8a",
       "includePath": [
-        "${workspaceFolder}/qbdi/include",
+        "${workspaceFolder}/**",
         "${workspaceFolder}/gum",
-        "${workspaceFolder}/src",
-        "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
-        "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/aarch64-linux-android"
+        "${workspaceFolder}/qbdi",
+        "${workspaceFolder}/qbdi/include",
+        "${workspaceFolder}/qbdi/include/QBDI",
+        "C:/Users/Administrator/AppData/Local/Android/Sdk/ndk/28.0.12433566/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
+        "C:/Users/Administrator/AppData/Local/Android/Sdk/ndk/28.0.12433566/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/aarch64-linux-android"
       ],
-      "defines": ["__aarch64__", "__ANDROID__", "__ANDROID_API__=33"],
+      "defines": [
+        "ANDROID",
+        "__ANDROID__",
+        "__ANDROID_API__=33",
+        "__aarch64__"
+      ],
+      "compilerPath": "C:/Users/Administrator/AppData/Local/Android/Sdk/ndk/28.0.12433566/toolchains/llvm/prebuilt/windows-x86_64/bin/clang++.exe",
       "cStandard": "c17",
       "cppStandard": "c++17",
-      "intelliSenseMode": "linux-clang-arm64",
-      "compilerPath": "${env:ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android33-clang++.cmd"
+      "intelliSenseMode": "android-clang-arm64",
+      "configurationProvider": "ms-vscode.cmake-tools"
     }
   ],
   "version": 4
